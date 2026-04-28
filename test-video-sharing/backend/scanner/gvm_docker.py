@@ -1,6 +1,6 @@
 import subprocess
 import time
-from .parse_report import parse_gvm_report
+from utils.parse_report import parse_gvm_report
 
 REPORT_PATH = "/tmp/gvm_report.xml"
 

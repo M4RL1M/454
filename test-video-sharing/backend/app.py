@@ -1,8 +1,28 @@
-from flask import Flask
-from routes.scan import scan_bp
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+
+from scanner.mock_scanner import run_mock_scan
+from scanner.gvm_docker import run_gvm_scan
 
 app = Flask(__name__)
-app.register_blueprint(scan_bp)
+CORS(app)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+USE_GVM = False  # toggle
+
+@app.route("/api/scan", methods=["POST"])
+def scan():
+    data = request.json
+    target = data.get("target")
+
+    if not target:
+        return jsonify({"error": "No target provided"}), 400
+
+    if USE_GVM:
+        result = run_gvm_scan(target)
+    else:
+        result = run_mock_scan(target)
+
+    return jsonify(result)
+
+if __name__ == "main":
+    app.run(debug=True)
