@@ -1,9 +1,7 @@
 import { useAuth } from "react-oidc-context";
 import {Button, Text} from '@aws-amplify/ui-react'
 import '@aws-amplify/ui-react/styles.css'
-import Information from "./information-page.tsx";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-
+import Information from "./pages/InformationPage.tsx";
 
 function App() {
   const auth = useAuth();
@@ -29,26 +27,15 @@ function App() {
 
   if (auth.isAuthenticated) {
     return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/"
-          element={
-            <div>
-              <Information />
+        <div>
+          <pre> Hello: {auth.user?.profile.email} </pre>
+          <pre> ID Token: {auth.user?.id_token} </pre>
+          <pre> Access Token: {auth.user?.access_token} </pre>
+          <pre> Refresh Token: {auth.user?.refresh_token} </pre>
 
-              <div style={{ marginTop: "1rem" }}>
-                <pre>Hello: {auth.user?.profile.email}</pre>
-                <button onClick={() => auth.removeUser()}>
-                  Sign out
-                </button>
-              </div>
-            </div>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
-  );
+          <button onClick={() => auth.removeUser()}>Sign out</button>
+        </div>
+    );
   }
 
   return (
