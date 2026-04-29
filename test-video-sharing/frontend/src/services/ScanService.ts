@@ -1,17 +1,20 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = "http://localhost:5000/api/scan";
 
-export async function runScan(target: string) {
-  const response = await fetch(`${API_URL}/api/scan`, {
+export const runScan = async (target: string) => {
+  const res = await fetch(API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json"},
     body: JSON.stringify({ target }),
   });
+  return res.json();
+}
 
-  if (!response.ok) {
-    throw new Error("Scan failed");
-  }
+export const getStatus = async (taskId: string) => {
+  const res = await fetch(`${API_URL}/status/${taskId}`);
+  return res.json();
+}
 
-  return response.json();
+export const getReport = async (reportId: string) => {
+  const res = await fetch(`${API_URL}/report/${reportId}`);
+  return res.json();
 }

@@ -3,7 +3,7 @@ import SignInPage from "./pages/SignInPage";
 import InformationPage from "./pages/InformationPage";
 import ScanPage from "./pages/ScanPage";
 
-function App() {
+export default function App() {
   return (
     <BrowserRouter>
       <Routes>
@@ -14,5 +14,3 @@ function App() {
     </BrowserRouter>
   );
 }
-
-export default App;

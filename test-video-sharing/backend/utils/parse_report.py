@@ -1,17 +1,19 @@
-import xml.etree.ElementTree as ET
+from lxml import etree
 
-def parse_gvm_report(xml_path):
-    tree = ET.parse(xml_path)
-    root = tree.getroot()
+def parse_gvm_report(xml_data):
+    root = etree.fromstring(xml_data.encode())
 
     results = []
 
-    for result in root.findall(".//result"):
+    # Iterate over each result in the report and extract relevant information
+    for result in root.xpath("//result"):
         results.append({
             "name": result.findtext("name"),
             "severity": result.findtext("severity"),
-            "description": result.findtext("description"),
+            "host": result.findtext("host"),
             "port": result.findtext("port"),
+            "description": result.findtext("description")
         })
 
+    # Return the list of parsed results
     return results

@@ -1,74 +1,71 @@
-import { useState } from "react";
-import { runScan } from "../services/ScanService";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { runScan, getStatus, getReport } from "../services/ScanService";
 
 export default function ScanPage() {
   const [target, setTarget] = useState("");
-  const [result, setResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [taskId, setTaskId] = useState<string | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const [results, setResults] = useState<any[]>([]);
 
   const handleScan = async () => {
-    setLoading(true);
-
-    if (!target.trim()) {
-        alert("Please enter a target");
-        return;
-    }
-
-    try {
-      const res = await runScan(target);
-      setResult(res);
-    } catch (err) {
-      setResult({ error: "Scan failed" });
-    }
-
-    setLoading(false);
+    const res = await runScan(target);
+    setTaskId(res.task_id);
+    setStatus("Started");
   };
+
+  // 🔁 Poll status
+  useEffect(() => {
+    if (!taskId) return;
+
+    const interval = setInterval(async () => {
+      const res = await getStatus(taskId);
+
+      setStatus(res.status);
+
+      if (res.status === "Done" && res.report_id) {
+        setReportId(res.report_id);
+        clearInterval(interval);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [taskId]);
+
+  // 📊 Fetch report
+  useEffect(() => {
+    if (!reportId) return;
+
+    const fetchData = async () => {
+      const data = await getReport(reportId);
+      setResults(data);
+    };
+
+    fetchData();
+  }, [reportId]);
 
   return (
     <div>
-      <h1>Scanner</h1>
+      <h1>Scan Page</h1>
 
       <input
         value={target}
         onChange={(e) => setTarget(e.target.value)}
-        placeholder="Target IP or domain"
+        placeholder="Enter target"
       />
 
       <button onClick={handleScan}>Run Scan</button>
 
-      {loading && <p>Scanning...</p>}
+      <p>Status: {status}</p>
 
-      {result?.error && (
-        <p style={{ color: "red" }}>{result.error}</p>
-      )}
-
-      {result?.vulnerabilities && (
-        <pre>{JSON.stringify(result, null, 2)}</pre>
-      )}
-
-      <button
-        onClick={() => navigate("/info")}
-        style={{
-          marginTop: "20px",
-          padding: "10px 20px",
-          cursor: "pointer",
-        }}
-      >
-        Information
-      </button>
-
-      <button
-        onClick={() => navigate("/")}
-        style={{
-          marginTop: "20px",
-          padding: "10px 20px",
-          cursor: "pointer",
-        }}
-      >
-        Back to Sign In;
-      </button>
+      <h2>Results</h2>
+      <ul>
+        {results.map((r, i) => (
+          <li key={i}>
+            {r.name} | Severity: {r.severity} | Host: {r.host}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
