@@ -15,14 +15,17 @@ def scan():
     target = data.get("target")
 
     if not target:
-        return jsonify({"error": "No target provided"}), 400
+        return jsonify({"Error": "No target provided"}), 400
 
-    if USE_GVM:
-        result = run_gvm_scan(target)
-    else:
-        result = run_mock_scan(target)
+    try:
+        if USE_GVM:
+            result = run_gvm_scan(target)
+        else:
+            result = run_mock_scan(target)
+    except Exception as e:
+        return jsonify({"Error": str(e)}), 500
 
     return jsonify(result)
 
-if __name__ == "main":
+if __name__ == "__main__":
     app.run(debug=True)

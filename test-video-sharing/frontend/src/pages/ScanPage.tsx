@@ -10,12 +10,19 @@ export default function ScanPage() {
 
   const handleScan = async () => {
     setLoading(true);
+
+    if (!target.trim()) {
+        alert("Please enter a target");
+        return;
+    }
+
     try {
       const res = await runScan(target);
       setResult(res);
     } catch (err) {
       setResult({ error: "Scan failed" });
     }
+
     setLoading(false);
   };
 
@@ -33,7 +40,13 @@ export default function ScanPage() {
 
       {loading && <p>Scanning...</p>}
 
-      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
+      {result?.error && (
+        <p style={{ color: "red" }}>{result.error}</p>
+      )}
+
+      {result?.vulnerabilities && (
+        <pre>{JSON.stringify(result, null, 2)}</pre>
+      )}
 
       <button onClick={() => navigate("/info")}>
         Back to Information
