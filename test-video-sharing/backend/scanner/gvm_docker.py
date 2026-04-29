@@ -21,26 +21,30 @@ def run_gvm_scan(target):
         gmp.authenticate(os.getenv("GVM_USER"), os.getenv("GVM_PASS"))
 
         # Get the "Full and fast" config
-        # configs_xml = gmp.get_scan_configs()
-        # configs = etree.fromstring(configs_xml.encode())
-        # This config setup will always run the CVE Scanner
-        # config_ids = configs.xpath("//config[name='Full and fast']/@id")
-        # if not config_ids:
-        #     raise Exception("Full and fast config not found")
-        # print("---- DEBUG START ----")
-        # print("CONFIG IDS:", config_ids)
-        # config_id = config_ids[0]
+        configs_xml = gmp.get_scan_configs()
+        configs = etree.fromstring(configs_xml.encode())
+        config_ids = configs.xpath("//config[name='Full and fast']/@id")
+        if not config_ids:
+            raise Exception("Full and fast config not found")
+        config_id = config_ids[0]
         # Explicitly set config to "Full and Fast"
-        config_id = "daba56c8-73ec-11df-a475-002264764cea"
+        # config_id = "daba56c8-73ec-11df-a475-002264764cea"
+        # print("Config ID:", config_id)
 
         # Get the first available scanner
         scanners_xml = gmp.get_scanners()
         scanners = etree.fromstring(scanners_xml.encode())
-        scanner_ids = scanners.xpath("/*/scanner/@id")
-        if not scanner_ids:
-            raise Exception("No scanners found")
-        # print("SCANNER IDS:", scanner_ids)
-        scanner_id = scanner_ids[0]
+        # For loop below can tell us the ids of the scan types
+        # for s in scanners.xpath("//scanner"):
+        #    print("SCANNER:", s.xpath("name/text()")[0], s.get("id"))
+        scanner_id = None
+        for s in scanners.xpath("//scanner"):
+            name = s.xpath("name/text()")[0]
+            if "OpenVAS" in name:
+                scanner_id = s.get("id")
+                break
+        if not scanner_id:
+            raise Exception("OpenVAS scanner not found")
 
         # Get the first available port list
         port_lists_xml = gmp.get_port_lists()
@@ -51,9 +55,12 @@ def run_gvm_scan(target):
         # print("PORT LIST IDS:", port_list_ids)
         port_list_id = port_list_ids[0]
 
+        # Create or Reuse the targets
         targets_xml = gmp.get_targets()
         targets = etree.fromstring(targets_xml.encode())
         existing = targets.xpath(f"//target[name='target-{target}']/@id")
+        # If the target already exists, reuse it
+        # Otherwise, create a new target
         if existing:
             target_id = existing[0]
         else:
@@ -66,27 +73,36 @@ def run_gvm_scan(target):
             target_xml = etree.fromstring(target_response.encode())
             target_id = target_xml.xpath("/*/@id")[0]
 
+        # Create or Reuse tasks
         tasks_xml = gmp.get_tasks()
         tasks = etree.fromstring(tasks_xml.encode())
-        existing_tasks = tasks.xpath(f"//task[name='task-{target}']/@id")
-        if existing_tasks:
-            task_id = existing_tasks[0]
-        else:
+        task_id = None
+        for t in tasks.xpath("//task"):
+            name = t.xpath("name/text()")[0]
+            # Similarly named task found.
+            if name == f"task-{target}":
+                existing_config = t.xpath("config/@id")[0]
+                # If the task has the same config, reuse it
+                if existing_config == config_id:
+                    task_id = t.get("id")
+                break
+        # Create a new task if there is no existing one
+        if not task_id:
             task_response = gmp.create_task(
                 name=f"task-{target}",
                 config_id=config_id,
                 target_id=target_id,
                 scanner_id=scanner_id
             )
-
             task_xml = etree.fromstring(task_response.encode())
             task_id = task_xml.xpath("/*/@id")[0]
+            print("Created new task: ", task_id)
+        else:
+            print("Using existing task: ", task_id)
 
         # Start the task
         start_response = gmp.start_task(task_id=task_id)
         start_xml = etree.fromstring(start_response.encode())
-        # print("START RESPONSE:", start_response)
-        # print("---- DEBUG END ----")
         report_ids = start_xml.xpath("//report_id/text()")
         if not report_ids or report_ids[0] == "0":
             report_id = None
