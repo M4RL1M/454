@@ -10,7 +10,7 @@ def get_id(xml, label):
         raise Exception(f"{label} creation failed: {etree.tostring(xml)}")
     return ids[0]
 
-def run_gvm_scan(target):
+def run_gvm_scan(target, mode="fast"):
 
     connection = TLSConnection(
         hostname=os.getenv("GVM_HOST"),
@@ -23,13 +23,17 @@ def run_gvm_scan(target):
         # Get the "Full and fast" config
         configs_xml = gmp.get_scan_configs()
         configs = etree.fromstring(configs_xml.encode())
-        config_ids = configs.xpath("//config[name='Full and fast']/@id")
+        if mode == "full":
+            config_name = "Full and fast"
+        else:
+            config_name = "Host Discovery"
+        config_ids = configs.xpath(f"//config[name='{config_name}']/@id")
         if not config_ids:
-            raise Exception("Full and fast config not found")
+            raise Exception(f"{config_name} config not found")
         config_id = config_ids[0]
         # Explicitly set config to "Full and Fast"
         # config_id = "daba56c8-73ec-11df-a475-002264764cea"
-        # print("Config ID:", config_id)
+        print("Config:", config_name)
 
         # Get the first available scanner
         scanners_xml = gmp.get_scanners()
@@ -80,16 +84,19 @@ def run_gvm_scan(target):
         for t in tasks.xpath("//task"):
             name = t.xpath("name/text()")[0]
             # Similarly named task found.
-            if name == f"task-{target}":
+            if name == f"task-{target}-{mode}":
                 existing_config = t.xpath("config/@id")[0]
                 # If the task has the same config, reuse it
                 if existing_config == config_id:
                     task_id = t.get("id")
+                    print("Using existing task: ", task_id)
+                else:
+                    print("Config mismatch: creating new task")
                 break
-        # Create a new task if there is no existing one
+        # Create a new task if there is no matching one
         if not task_id:
             task_response = gmp.create_task(
-                name=f"task-{target}",
+                name=f"task-{target}-{mode}",
                 config_id=config_id,
                 target_id=target_id,
                 scanner_id=scanner_id
@@ -100,10 +107,25 @@ def run_gvm_scan(target):
         else:
             print("Using existing task: ", task_id)
 
+        # Check task status
+        task_xml = gmp.get_task(task_id=task_id)
+        task_detail = etree.fromstring(task_xml.encode())
+        status_nodes = task_detail.xpath("//status/text()")
+        current_status = status_nodes[0] if status_nodes else "Unknown"
+        # If task is already running or requested, skip the scan
+        if current_status in ["Running", "Requested"]:
+            print("Task already running, skipping new scan")
+            return {
+                "status": "already running",
+                "task_id": task_id
+            }
+
         # Start the task
         start_response = gmp.start_task(task_id=task_id)
         start_xml = etree.fromstring(start_response.encode())
         report_ids = start_xml.xpath("//report_id/text()")
+        # Cleanup old reports after starting task
+        cleanup_old_reports(gmp, task_id)
         if not report_ids or report_ids[0] == "0":
             report_id = None
         else:
@@ -112,8 +134,26 @@ def run_gvm_scan(target):
         return {
             "status": "started",
             "task_id": task_id,
-            "report_id": report_id
+            "report_id": report_id,
+            "mode": mode
         }
+    
+def cleanup_old_reports(gmp, task_id, keep=3):
+    # Helper function called after starting tasks
+    # Removes older reports
+    reports_xml = gmp.get_reports()
+    reports = etree.fromstring(reports_xml.encode())
+
+    report_nodes = reports.xpath(f"//report[task/@id='{task_id}']")
+
+    report_ids = [r.get("id") for r in report_nodes]
+
+    # newest last → reverse to keep newest first
+    report_ids = report_ids[::-1]
+
+    for old_id in report_ids[keep:]:
+        print("Deleting old report:", old_id)
+        gmp.delete_report(report_id=old_id)
 
 def get_scan_status(task_id):
     connection = TLSConnection(
@@ -131,6 +171,15 @@ def get_scan_status(task_id):
         # Get task status
         task_xml = gmp.get_task(task_id=task_id)
         task = etree.fromstring(task_xml.encode())
+        name_nodes = task.xpath("//name/text()")
+        task_name = name_nodes[0] if name_nodes else ""
+
+        mode = "unknown"
+        if task_name.endswith("-fast"):
+            mode = "fast"
+        elif task_name.endswith("-full"):
+            mode = "full"
+
         status = task.xpath("//status/text()")[0]
 
         report_ids = task.xpath("//last_report/report/@id")
@@ -139,7 +188,8 @@ def get_scan_status(task_id):
         # Return the task status
         return {
             "status": status,
-            "report_id": report_id
+            "report_id": report_id,
+            "mode": mode
         }
     
 def get_report(report_id):
@@ -165,6 +215,10 @@ def get_report(report_id):
         results = []
 
         for r in report.xpath("//result"):
+            def get(xpath):
+                val = r.xpath(xpath)
+                return val[0] if val else None
+            
             name = get("name/text()")
             severity = get("severity/text()")
             host = get("host/text()")
@@ -189,7 +243,3 @@ def get_report(report_id):
         results.sort(key=lambda x: x["severity"], reverse=True)
 
         return results
-    
-    def get(xpath):
-        val = r.xpath(xpath)
-        return val[0] if val else None

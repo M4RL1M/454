@@ -2,29 +2,55 @@ import { useState, useEffect } from "react";
 import { runScan, getStatus, getReport } from "../services/ScanService";
 
 export default function ScanPage() {
+  const [mode, setMode] = useState<string>("fast");
   const [target, setTarget] = useState("");
   const [taskId, setTaskId] = useState<string | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
+  const [scanMode, setScanMode] = useState<"fast" | "full">("fast");
   const [status, setStatus] = useState("");
   const [results, setResults] = useState<any[]>([]);
 
   const handleScan = async () => {
-    const res = await runScan(target);
-    setTaskId(res.task_id);
-    setStatus("Started");
+    try {
+      setStatus("Running");
+      setResults([]);
+      // Clean the input (remove leading https)
+      const cleanTarget = target.replace(/^https?:\/\//,"").trim();
+      const res = await runScan(cleanTarget, scanMode);
+      if (res.status === "already running") {
+        setTaskId(res.task_id);
+        setStatus("Running")
+        return;
+      }
+      setMode(res.mode || scanMode);
+      setTaskId(res.task_id)
+    } catch (err) {
+      console.error(err);
+      setStatus("Error Starting Scan")
+    }
   };
 
-  // 🔁 Poll status
+  // Poll status
   useEffect(() => {
     if (!taskId) return;
 
     const interval = setInterval(async () => {
-      const res = await getStatus(taskId);
+      try {
+        const res = await getStatus(taskId);
 
-      setStatus(res.status);
+        setStatus(res.status);
 
-      if (res.status === "Done" && res.report_id) {
-        setReportId(res.report_id);
+        if (res.mode) {
+          setMode(res.mode);
+        }
+
+        if (res.status === "Done" && res.report_id) {
+          setReportId(res.report_id);
+          clearInterval(interval);
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus("Error Fetching Status");
         clearInterval(interval);
       }
     }, 5000);
@@ -32,13 +58,26 @@ export default function ScanPage() {
     return () => clearInterval(interval);
   }, [taskId]);
 
-  // 📊 Fetch report
+  // Fetch report
   useEffect(() => {
     if (!reportId) return;
 
     const fetchData = async () => {
-      const data = await getReport(reportId);
-      setResults(data);
+      try {
+        const data = await getReport(reportId);
+        console.log("Report Data: ", data);
+
+        if (Array.isArray(data)) {
+          setResults(data);
+        } else if (Array.isArray(data.results)) {
+          setResults(data.results);
+        } else {
+          setResults([]);
+        }
+      } catch (err) {
+        console.error(err);
+        setResults([]);
+      }
     };
 
     fetchData();
@@ -54,17 +93,39 @@ export default function ScanPage() {
         placeholder="Enter target"
       />
 
-      <button onClick={handleScan}>Run Scan</button>
+      <select
+        value = {scanMode}
+        onChange={(e) => setScanMode(e.target.value as "fast" | "full")}
+      >
+          <option value="fast"> Fast Scan (Host Discovery) </option>
+          <option value="full"> Full Scan (Full and Fast) </option>
+      </select>
 
-      <p>Status: {status}</p>
+      <button onClick={handleScan} disabled={status === "Running"}>
+        {status === "Running" ? "Scanning..." : "Run Scan"}
+      </button>
+
+      {status === "Error Starting Scan" && <p> Failed to start scan </p>}
+      {status === "Running" && <p> Scan in progress... </p>}
+      {status === "Done" && <p> Scan complete </p>}
+
+      <p> 
+        Mode: { mode === "fast" ? "Fast (Host Discovery)" :
+                mode === "full" ? "Full (Full and Fast)" :
+                "Unknown"}
+      </p>
 
       <h2>Results</h2>
       <ul>
-        {results.map((r, i) => (
-          <li key={i}>
-            {r.name} | Severity: {r.severity} | Host: {r.host}
-          </li>
-        ))}
+        {Array.isArray(results) && results.length > 0 ? (
+          results.map((r, i) => (
+            <li key={i}>
+              {r.name ?? "Unknown"} | Severity: {r.severity ?? "N/A"} | Host: {r.host ?? "N/A"}
+            </li>
+          ))
+        ) : (
+          <li>No results yet</li>
+        )}
       </ul>
     </div>
   );

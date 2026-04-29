@@ -14,12 +14,13 @@ CORS(app)
 def scan():
     data = request.json
     target = data.get("target")
+    mode = data.get("mode", "fast")
 
     if not target:
         return jsonify({"Error": "No target provided"}), 400
 
     try:
-        result = run_gvm_scan(target)
+        result = run_gvm_scan(target, mode)
         # Return the result of starting the scan (e.g., task ID, report ID)
         return jsonify(result)
     except Exception as e:
