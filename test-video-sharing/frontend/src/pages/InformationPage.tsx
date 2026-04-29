@@ -42,8 +42,15 @@ export default function InformationPage() {
         Vulnerability Scanner
       </button>
 
-      <button onClick={() => navigate("/")}>
-        Back to Sign In
+      <button
+        onClick={() => navigate("/")}
+        style={{
+          marginTop: "20px",
+          padding: "10px 20px",
+          cursor: "pointer",
+        }}
+      >
+        Back to Sign In;
       </button>
     </div>
   );

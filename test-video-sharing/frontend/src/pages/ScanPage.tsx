@@ -48,12 +48,26 @@ export default function ScanPage() {
         <pre>{JSON.stringify(result, null, 2)}</pre>
       )}
 
-      <button onClick={() => navigate("/info")}>
-        Back to Information
+      <button
+        onClick={() => navigate("/info")}
+        style={{
+          marginTop: "20px",
+          padding: "10px 20px",
+          cursor: "pointer",
+        }}
+      >
+        Information
       </button>
-      
-      <button onClick={() => navigate("/")}>
-        Back to Sign In
+
+      <button
+        onClick={() => navigate("/")}
+        style={{
+          marginTop: "20px",
+          padding: "10px 20px",
+          cursor: "pointer",
+        }}
+      >
+        Back to Sign In;
       </button>
     </div>
   );
