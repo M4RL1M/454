@@ -21,14 +21,17 @@ def run_gvm_scan(target):
         gmp.authenticate(os.getenv("GVM_USER"), os.getenv("GVM_PASS"))
 
         # Get the "Full and fast" config
-        configs_xml = gmp.get_scan_configs()
-        configs = etree.fromstring(configs_xml.encode())
-        config_ids = configs.xpath("//config[name='Full and fast']/@id")
-        if not config_ids:
-            raise Exception("Full and fast config not found")
+        # configs_xml = gmp.get_scan_configs()
+        # configs = etree.fromstring(configs_xml.encode())
+        # This config setup will always run the CVE Scanner
+        # config_ids = configs.xpath("//config[name='Full and fast']/@id")
+        # if not config_ids:
+        #     raise Exception("Full and fast config not found")
         # print("---- DEBUG START ----")
         # print("CONFIG IDS:", config_ids)
-        config_id = config_ids[0]
+        # config_id = config_ids[0]
+        # Explicitly set config to "Full and Fast"
+        config_id = "daba56c8-73ec-11df-a475-002264764cea"
 
         # Get the first available scanner
         scanners_xml = gmp.get_scanners()
@@ -136,21 +139,41 @@ def get_report(report_id):
             os.getenv("GVM_PASS")
         )
 
-        # Get report
-        report_xml = gmp.get_report(report_id=report_id)
+        # Get report (request full details)
+        report_xml = gmp.get_report(
+            report_id=report_id,
+            details=True
+        )
         report = etree.fromstring(report_xml.encode())
 
         results = []
 
         for r in report.xpath("//result"):
-            name = r.xpath("name/text()")
-            severity = r.xpath("severity/text()")
-            host = r.xpath("host/text()")
+            name = get("name/text()")
+            severity = get("severity/text()")
+            host = get("host/text()")
+            port = get("port/text()")
+            description = get("description/text()")
+            solution = get("solution/text()")
+
+            # CVE Extraction
+            cves = r.xpath(".//cve/text()")
 
             results.append({
-                "name": name[0] if name else "Unknown",
-                "severity": severity[0] if severity else "0",
-                "host": host[0] if host else "Unknown"
+                "name": name or "Unknown",
+                "severity": float(severity) if severity else 0.0,
+                "host": host or "Unknown",
+                "port": port or "N/A",
+                "description": description or "",
+                "solution": solution or "",
+                "cves": cves if cves else []
             })
 
+        # Sort results by severity
+        results.sort(key=lambda x: x["severity"], reverse=True)
+
         return results
+    
+    def get(xpath):
+        val = r.xpath(xpath)
+        return val[0] if val else None
