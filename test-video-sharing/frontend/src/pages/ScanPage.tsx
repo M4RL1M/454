@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { runScan, getStatus, getReport } from "../services/ScanService";
 
 export default function ScanPage() {
+  const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<string>("fast");
   const [target, setTarget] = useState("");
   const [taskId, setTaskId] = useState<string | null>(null);
@@ -10,23 +11,26 @@ export default function ScanPage() {
   const [status, setStatus] = useState("");
   const [results, setResults] = useState<any[]>([]);
 
+  // Handle scan attempts
   const handleScan = async () => {
     try {
-      setStatus("Running");
+      setError(null);   // Clear previous errors
+      setStatus("Requested");
       setResults([]);
       // Clean the input (remove leading https)
       const cleanTarget = target.replace(/^https?:\/\//,"").trim();
       const res = await runScan(cleanTarget, scanMode);
       if (res.status === "already running") {
         setTaskId(res.task_id);
-        setStatus("Running")
+        setStatus("Running");
         return;
       }
+      setTaskId(res.task_id);
       setMode(res.mode || scanMode);
-      setTaskId(res.task_id)
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setStatus("Error Starting Scan")
+      setError(err?.message || "Failed to start scan");
+      setStatus("Error");
     }
   };
 
@@ -48,9 +52,10 @@ export default function ScanPage() {
           setReportId(res.report_id);
           clearInterval(interval);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
-        setStatus("Error Fetching Status");
+        setError(err?.message || "Error fetching scan status");
+        setStatus("Error");
         clearInterval(interval);
       }
     }, 5000);
@@ -74,14 +79,17 @@ export default function ScanPage() {
         } else {
           setResults([]);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error(err);
+        setError(err?.message || "Error fetching report");
         setResults([]);
       }
     };
 
     fetchData();
   }, [reportId]);
+
+  const isScanning = ["Running", "Requested", "Queued"].includes(status);
 
   return (
     <div>
@@ -101,12 +109,12 @@ export default function ScanPage() {
           <option value="full"> Full Scan (Full and Fast) </option>
       </select>
 
-      <button onClick={handleScan} disabled={status === "Running"}>
-        {status === "Running" ? "Scanning..." : "Run Scan"}
+      <button onClick={handleScan} disabled={isScanning}>
+        {isScanning ? "Scanning..." : "Run Scan"}
       </button>
 
       {status === "Error Starting Scan" && <p> Failed to start scan </p>}
-      {status === "Running" && <p> Scan in progress... </p>}
+      {isScanning && <p> Scan in progress... </p>}
       {status === "Done" && <p> Scan complete </p>}
 
       <p> 
@@ -115,18 +123,24 @@ export default function ScanPage() {
                 "Unknown"}
       </p>
 
+      {error && (
+        <p style={{color: "red", fontWeight: "bold"}}> {error} </p>
+      )}
+
       <h2>Results</h2>
-      <ul>
-        {Array.isArray(results) && results.length > 0 ? (
-          results.map((r, i) => (
+      {error ? (
+        <p style={{ color: "red" }}> Unable to load results </p>
+      ) : Array.isArray(results) && results.length > 0 ? (
+        <ul>
+          {results.map((r, i) => (
             <li key={i}>
               {r.name ?? "Unknown"} | Severity: {r.severity ?? "N/A"} | Host: {r.host ?? "N/A"}
             </li>
-          ))
-        ) : (
-          <li>No results yet</li>
-        )}
-      </ul>
+          ))}
+        </ul>
+      ) : (
+        <p> No results yet </p>
+      )}
     </div>
   );
 }
