@@ -8,19 +8,32 @@ export default function ScanPage() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [scanMode, setScanMode] = useState<"fast" | "full">("fast");
+  const [startTime, setStartTime] = useState<number | null>(null);
   const [status, setStatus] = useState("");
   const [results, setResults] = useState<any[]>([]);
+
+  // Compute elapsed time (in seconds) from start of scan
+  const elapsedSeconds = startTime
+    ? Math.floor((Date.now() - startTime) / 1000)
+    : 0;
+
+  // Statuses indicating a scan is ongoing (used to prevent scans from being
+  // requested or queued during the runtime of another)
+  const isScanning = ["Running", "Requested", "Queued"].includes(status);
 
   // Handle scan attempts
   const handleScan = async () => {
     try {
       setError(null);   // Clear previous errors
+      setStartTime(Date.now()); // Retrieve scan start time
       setStatus("Requested");
       setResults([]);
       // Clean the input (remove leading https)
       const cleanTarget = target.replace(/^https?:\/\//,"").trim();
+      // Initiate and wait for scan changes
       const res = await runScan(cleanTarget, scanMode);
       if (res.status === "already running") {
+        // Scan request succeeds
         setTaskId(res.task_id);
         setStatus("Running");
         return;
@@ -28,6 +41,7 @@ export default function ScanPage() {
       setTaskId(res.task_id);
       setMode(res.mode || scanMode);
     } catch (err: any) {
+      // Scan request fails
       console.error(err);
       setError(err?.message || "Failed to start scan");
       setStatus("Error");
@@ -49,7 +63,18 @@ export default function ScanPage() {
         }
 
         if (res.status === "Done" && res.report_id) {
+          // Scan finishes normally
           setReportId(res.report_id);
+          clearInterval(interval);
+        } else if (res.report_id && elapsedSeconds > 60) {
+          // Fallback when scan takes too long
+          console.log("Fetching report early (long scan fallback)");
+          setReportId(res.report_id);
+          clearInterval(interval);
+        }
+        if (elapsedSeconds > 600) {
+          // Scan timesout (10 minutes)
+          setError("Scan took too long. Try again later");
           clearInterval(interval);
         }
       } catch (err: any) {
@@ -69,8 +94,8 @@ export default function ScanPage() {
 
     const fetchData = async () => {
       try {
+        // Retrieve report
         const data = await getReport(reportId);
-        console.log("Report Data: ", data);
 
         if (Array.isArray(data)) {
           setResults(data);
@@ -80,6 +105,7 @@ export default function ScanPage() {
           setResults([]);
         }
       } catch (err: any) {
+        // Report retrieval fails
         console.error(err);
         setError(err?.message || "Error fetching report");
         setResults([]);
@@ -88,8 +114,6 @@ export default function ScanPage() {
 
     fetchData();
   }, [reportId]);
-
-  const isScanning = ["Running", "Requested", "Queued"].includes(status);
 
   return (
     <div>
@@ -113,10 +137,6 @@ export default function ScanPage() {
         {isScanning ? "Scanning..." : "Run Scan"}
       </button>
 
-      {status === "Error Starting Scan" && <p> Failed to start scan </p>}
-      {isScanning && <p> Scan in progress... </p>}
-      {status === "Done" && <p> Scan complete </p>}
-
       <p> 
         Mode: { mode === "fast" ? "Fast (Host Discovery)" :
                 mode === "full" ? "Full (Full and Fast)" :
@@ -124,7 +144,21 @@ export default function ScanPage() {
       </p>
 
       {error && (
-        <p style={{color: "red", fontWeight: "bold"}}> {error} </p>
+        <p style={{color: "red"}}> {error} </p>
+      )}
+      {isScanning && (
+        <p>
+          {elapsedSeconds < 30 && "Initializing Scan..."}
+          {elapsedSeconds >= 30 && elapsedSeconds < 120 && "Scanning Target..."}
+          {elapsedSeconds >= 120 && "Finalizing Results..."}
+        </p>
+      )}
+      {status === "Done" && <p> Scan complete </p>}
+
+      {status !== "Done" && reportId && (
+        <button onClick={() => setReportId(reportId)}>
+          Fetch Partial Results
+        </button>
       )}
 
       <h2>Results</h2>
