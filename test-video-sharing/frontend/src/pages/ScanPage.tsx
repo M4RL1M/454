@@ -39,7 +39,7 @@ export default function ScanPage() {
         return;
       }
       setTaskId(res.task_id);
-      setMode(res.mode || scanMode);
+      setMode(scanMode);
     } catch (err: any) {
       // Scan request fails
       console.error(err);
@@ -62,17 +62,27 @@ export default function ScanPage() {
           setMode(res.mode);
         }
 
-        if (res.status === "Done" && res.report_id) {
-          // Scan finishes normally
+        if (res.report_id && !reportId) {
+          // Update report id
           setReportId(res.report_id);
-          clearInterval(interval);
-        } else if (res.report_id && elapsedSeconds > 60) {
+        } 
+        if (res.status === "Done") {
+          // Normal completion of scan
+          clearInterval(interval)
+        }
+
+        // Time elapsed from start of scan
+        const elapsed = startTime
+          ? Math.floor((Date.now() - startTime) / 1000)
+          : 0;
+
+        if (res.report_id && elapsed > 60) {
           // Fallback when scan takes too long
           console.log("Fetching report early (long scan fallback)");
           setReportId(res.report_id);
           clearInterval(interval);
         }
-        if (elapsedSeconds > 600) {
+        if (elapsed > 600) {
           // Scan timesout (10 minutes)
           setError("Scan took too long. Try again later");
           clearInterval(interval);
@@ -114,6 +124,18 @@ export default function ScanPage() {
 
     fetchData();
   }, [reportId]);
+
+  // Timer to force UI updates
+  useEffect(() => {
+    if (!startTime) return;
+
+    const timer = setInterval(() => {
+      // Force re-render every second
+      setStartTime((prev) => (prev ? prev : null));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [startTime]);
 
   return (
     <div>
