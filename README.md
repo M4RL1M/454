@@ -12,5 +12,7 @@ After this is done, you will have an environment that can execute the GVM backen
 1) source env/bin/activate
 2) python app.py
 
+Note: There is a .env file which contains environment variables. This contains (1) the gvm API port, (2) the gvm IP, and (3) basic user credentials which give the python API access to create, manage and receive a report for scans. Modify this as needed for the API to run. 
+
 # Frontend
-To run the code frontend, npm has to be installed in the frontend folder. If it is installed, simply run "npm run dev" then access the link. By this point, the backend and frontend should be working. Simply navigate to the scan page and enter a domain name or IP you want gvm to scan. The results of the scan should be shown once the scan finishes.
+To run the code frontend, npm has to be installed in the frontend folder. If it is installed, simply run "npm run dev" then access the link. By this point, the backend and frontend should be working. Simply navigate to the scan page and enter a domain name or IP you want gvm to scan. The results of the scan should be shown once the scan finishes, provided that the GVM service is running.
