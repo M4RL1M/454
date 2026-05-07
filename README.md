@@ -1,5 +1,9 @@
 In order to test the gvm API, you'll need to open 2 terminals: One inside the backend folder and another in the frontend folder.
 
+# GVM Docker
+In order for the python API for the GVM to run as intended, you must run a GVM docker image from an EC2. The following document will help with the setup:
+https://docs.google.com/document/d/1z6TCH_2kIAN5-IGt-_OknJjk2WdFJlJw9DlfspCLj44/edit?usp=sharing
+
 # Backend
 To run the code backend, you must first set up the environment in the backend folder. In the backend folder, run the following commands in the terminal:
 1) python3 -m venv env
